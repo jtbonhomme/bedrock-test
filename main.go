@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -15,24 +16,31 @@ import (
 )
 
 func checkAWSConfig(cfg aws.Config) {
-	log.Info().Msgf("AWS Region: %s", cfg.Region)
-	log.Info().Msgf("AWS Credentials Provider: %T", cfg.Credentials)
+	log.Debug().Msgf("AWS Region: %s", cfg.Region)
+	log.Debug().Msgf("AWS Credentials Provider: %T", cfg.Credentials)
 
 	// Vérifier les variables d'environnement importantes
 	if region := os.Getenv("AWS_REGION"); region != "" {
-		log.Info().Msgf("AWS_REGION env var: %s", region)
+		log.Debug().Msgf("AWS_REGION env var: %s", region)
 	}
 	if profile := os.Getenv("AWS_PROFILE"); profile != "" {
-		log.Info().Msgf("AWS_PROFILE env var: %s", profile)
+		log.Debug().Msgf("AWS_PROFILE env var: %s", profile)
 	}
 }
 
 func main() {
+	var debug bool
+	flag.BoolVar(&debug, "d", false, "enable debug mode")
+	flag.Parse()
+
 	zerolog.CallerMarshalFunc = func(pc uintptr, file string, line int) string {
 		return filepath.Base(file) + ":" + strconv.Itoa(line)
 	}
 	log.Logger = log.With().Caller().Logger().Output(zerolog.ConsoleWriter{Out: os.Stderr})
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	if debug {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	}
 	log.Info().Msg("run bedrock test program")
 
 	// load aws credentials from profile demo using config
@@ -43,11 +51,17 @@ func main() {
 		log.Panic().Msgf("failed to load aws config: %v", err)
 	}
 
-	log.Info().Msgf("aws config: %+v\n", awsCfg)
+	log.Debug().Msgf("aws config: %+v\n", awsCfg)
 	checkAWSConfig(awsCfg)
 
 	// create bedrock runtime client
 	bedrockClient := bedrockruntime.NewFromConfig(awsCfg)
 
-	CallBedrockClaude3HaikuChat(bedrockClient)
+	bedrockAnswer, err := CallBedrockClaude3HaikuChat(bedrockClient)
+	if err != nil {
+		log.Err(err).Msg("error calling CallBedrockClaude3HaikuChat")
+		return
+	}
+
+	log.Info().Msgf("answer is \"%s\"", bedrockAnswer)
 }

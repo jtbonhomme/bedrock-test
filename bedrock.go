@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
+	"github.com/briandowns/spinner"
 	"github.com/rs/zerolog/log"
 )
 
@@ -76,7 +78,7 @@ type Query struct {
 //)
 
 func CallBedrockClaude3HaikuChat(bedrockClient *bedrockruntime.Client) (string, error) {
-	log.Info().Msg("CallBedrockClaude3HaikuChat")
+	log.Debug().Msg("CallBedrockClaude3HaikuChat")
 	messages := []Message{
 		{
 			Role: "user",
@@ -88,7 +90,7 @@ func CallBedrockClaude3HaikuChat(bedrockClient *bedrockruntime.Client) (string, 
 			},
 		},
 	}
-	log.Info().Msgf("messages: %v", messages)
+	log.Debug().Msgf("messages: %v", messages)
 
 	payload := RequestBodyClaude3{
 		MaxTokensToSample: 2048,
@@ -120,7 +122,11 @@ func CallBedrockClaude3HaikuChat(bedrockClient *bedrockruntime.Client) (string, 
 		return "", error
 	}
 
-	log.Info().Msgf("output get stream: %#v", output)
+	log.Debug().Msgf("output get stream: %#v", output)
+
+	fullAnswer := ""
+	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond) // Build our new spinner
+	s.Start()                                                   // Start the spinner
 
 	for event := range output.GetStream().Events() {
 		switch v := event.(type) {
@@ -133,7 +139,7 @@ func CallBedrockClaude3HaikuChat(bedrockClient *bedrockruntime.Client) (string, 
 				return "", err
 			}
 
-			log.Debug().Msg(resp.Delta.Text)
+			fullAnswer += resp.Delta.Text
 
 		case *types.UnknownUnionMember:
 			log.Debug().Msgf("unknown tag: %v", v.Tag)
@@ -142,6 +148,7 @@ func CallBedrockClaude3HaikuChat(bedrockClient *bedrockruntime.Client) (string, 
 			log.Debug().Msg("union is nil or unknown type")
 		}
 	}
+	s.Stop()
 
-	return "", nil
+	return fullAnswer, nil
 }
