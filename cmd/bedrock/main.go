@@ -13,6 +13,9 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
+
+	"github.com/jtbonhomme/bedrock-test/internal/bedrock"
+	"github.com/jtbonhomme/bedrock-test/internal/mcp"
 )
 
 func checkAWSConfig(cfg aws.Config) {
@@ -49,7 +52,7 @@ func main() {
 	log.Info().Msg("run bedrock test program with MCP integration")
 
 	// Initialize MCP client
-	mcpClient := NewMCPClient(mcpURL)
+	mcpClient := mcp.NewMCPClient(mcpURL)
 	log.Info().Msgf("Connecting to MCP server at: %s", mcpURL)
 
 	// Test MCP connection
@@ -76,13 +79,13 @@ func main() {
 	bedrockClient := bedrockruntime.NewFromConfig(awsCfg)
 
 	// Use new MCP-integrated function
-	bedrockAnswer, err := CallBedrockClaude3WithMCP(bedrockClient, mcpClient, query)
+	bedrockAnswer, err := bedrock.CallBedrockClaude3WithMCP(bedrockClient, mcpClient, query)
 	if err != nil {
 		log.Err(err).Msg("error calling CallBedrockClaude3WithMCP")
 
 		// Fallback to original function
 		log.Info().Msg("Falling back to original Bedrock function...")
-		bedrockAnswer, err = CallBedrockClaude3HaikuChat(bedrockClient)
+		bedrockAnswer, err = bedrock.CallBedrockClaude3HaikuChat(bedrockClient)
 		if err != nil {
 			log.Err(err).Msg("error calling CallBedrockClaude3HaikuChat")
 			return

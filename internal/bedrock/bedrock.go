@@ -1,4 +1,4 @@
-package main
+package bedrock
 
 import (
 	"bytes"
@@ -11,6 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
 	"github.com/briandowns/spinner"
 	"github.com/rs/zerolog/log"
+
+	"github.com/jtbonhomme/bedrock-test/internal/mcp"
 )
 
 // claude3 request data type
@@ -159,7 +161,7 @@ func getPostgreSQLTools() []Tool {
 	}
 }
 
-func CallBedrockClaude3WithMCP(bedrockClient *bedrockruntime.Client, mcpClient *MCPClient, userQuery string) (string, error) {
+func CallBedrockClaude3WithMCP(bedrockClient *bedrockruntime.Client, mcpClient *mcp.MCPClient, userQuery string) (string, error) {
 	log.Debug().Msg("CallBedrockClaude3WithMCP")
 
 	messages := []Message{

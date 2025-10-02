@@ -1,4 +1,4 @@
-module github.com/Contentsquare/bedrock-test
+module github.com/jtbonhomme/bedrock-test
 
 go 1.24.5
 
