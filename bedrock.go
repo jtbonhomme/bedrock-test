@@ -24,11 +24,36 @@ type Message struct {
 	Content []Content `json:"content"`
 }
 
+// Tool definitions for Claude
+type Tool struct {
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
+	InputSchema InputSchema `json:"input_schema"`
+}
+
+type InputSchema struct {
+	Type       string                        `json:"type"`
+	Properties map[string]PropertyDefinition `json:"properties"`
+	Required   []string                      `json:"required"`
+}
+
+type PropertyDefinition struct {
+	Type        string `json:"type"`
+	Description string `json:"description"`
+}
+
 type RequestBodyClaude3 struct {
-	MaxTokensToSample int       `json:"max_tokens"`
-	Temperature       float64   `json:"temperature,omitempty"`
-	AnthropicVersion  string    `json:"anthropic_version"`
-	Messages          []Message `json:"messages"`
+	MaxTokensToSample int         `json:"max_tokens"`
+	Temperature       float64     `json:"temperature,omitempty"`
+	AnthropicVersion  string      `json:"anthropic_version"`
+	Messages          []Message   `json:"messages"`
+	Tools             []Tool      `json:"tools,omitempty"`
+	ToolChoice        *ToolChoice `json:"tool_choice,omitempty"`
+}
+
+type ToolChoice struct {
+	Type string `json:"type"`           // "auto", "any", or "tool"
+	Name string `json:"name,omitempty"` // if type is "tool"
 }
 
 // frontend request data type
@@ -46,6 +71,20 @@ type ResponseClaude3 struct {
 	Type  string `json:"type"`
 	Index int    `json:"index"`
 	Delta Delta  `json:"delta"`
+}
+
+// Tool use response types
+type ToolUse struct {
+	Type  string                 `json:"type"`
+	ID    string                 `json:"id"`
+	Name  string                 `json:"name"`
+	Input map[string]interface{} `json:"input"`
+}
+
+type ToolResult struct {
+	Type      string `json:"type"`
+	ToolUseID string `json:"tool_use_id"`
+	Content   string `json:"content"`
 }
 
 // claude2 data type
@@ -76,6 +115,130 @@ type Query struct {
 //		Accept:      aws.String("application/json"),
 //	},
 //)
+
+// Define PostgreSQL tools that Claude can use
+func getPostgreSQLTools() []Tool {
+	return []Tool{
+		{
+			Name:        "postgres_read_query",
+			Description: "Execute a read-only SQL query on PostgreSQL database",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]PropertyDefinition{
+					"query": {
+						Type:        "string",
+						Description: "The SQL query to execute",
+					},
+				},
+				Required: []string{"query"},
+			},
+		},
+		{
+			Name:        "postgres_list_tables",
+			Description: "List all tables in the PostgreSQL database",
+			InputSchema: InputSchema{
+				Type:       "object",
+				Properties: map[string]PropertyDefinition{},
+				Required:   []string{},
+			},
+		},
+		{
+			Name:        "postgres_desc_table",
+			Description: "Describe the structure of a PostgreSQL table",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]PropertyDefinition{
+					"name": {
+						Type:        "string",
+						Description: "Name of the table to describe",
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+	}
+}
+
+func CallBedrockClaude3WithMCP(bedrockClient *bedrockruntime.Client, mcpClient *MCPClient, userQuery string) (string, error) {
+	log.Debug().Msg("CallBedrockClaude3WithMCP")
+
+	messages := []Message{
+		{
+			Role: "user",
+			Content: []Content{
+				{
+					Type: "text",
+					Text: userQuery,
+				},
+			},
+		},
+	}
+
+	payload := RequestBodyClaude3{
+		MaxTokensToSample: 2048,
+		AnthropicVersion:  "bedrock-2023-05-31",
+		Temperature:       0.1,
+		Messages:          messages,
+		Tools:             getPostgreSQLTools(),
+		ToolChoice:        &ToolChoice{Type: "auto"},
+	}
+
+	payloadBytes, error := json.Marshal(payload)
+	if error != nil {
+		log.Err(error).Msgf("error marshaling payload %#v ", payload)
+		return "", error
+	}
+	log.Debug().Msgf("payload %s", string(payloadBytes))
+
+	input := &bedrockruntime.InvokeModelWithResponseStreamInput{
+		Body:        payloadBytes,
+		ModelId:     aws.String("anthropic.claude-3-sonnet-20240229-v1:0"),
+		ContentType: aws.String("application/json"),
+		Accept:      aws.String("*/*"),
+	}
+
+	output, error := bedrockClient.InvokeModelWithResponseStream(
+		context.Background(),
+		input,
+	)
+	if error != nil {
+		log.Err(error).Msg("error invoking InvokeModelWithResponseStream with modelId " + *input.ModelId)
+		return "", error
+	}
+
+	fullAnswer := ""
+	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
+	s.Start()
+
+	for event := range output.GetStream().Events() {
+		switch v := event.(type) {
+		case *types.ResponseStreamMemberChunk:
+			var resp ResponseClaude3
+			err := json.NewDecoder(bytes.NewReader(v.Value.Bytes)).Decode(&resp)
+			if err != nil {
+				log.Err(err).Msg("error decoding response")
+				return "", err
+			}
+
+			// Check if Claude wants to use a tool
+			if resp.Delta.Type == "tool_use" {
+				// Handle tool use (will be implemented in next step)
+				log.Debug().Msg("Claude wants to use a tool")
+			} else {
+				fullAnswer += resp.Delta.Text
+			}
+
+		case *types.UnknownUnionMember:
+			log.Debug().Msgf("unknown tag: %v", v.Tag)
+
+		default:
+			log.Debug().Msg("union is nil or unknown type")
+		}
+	}
+	s.Stop()
+
+	return fullAnswer, nil
+}
 
 func CallBedrockClaude3HaikuChat(bedrockClient *bedrockruntime.Client) (string, error) {
 	log.Debug().Msg("CallBedrockClaude3HaikuChat")
