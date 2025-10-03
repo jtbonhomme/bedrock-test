@@ -28,6 +28,8 @@ func NewMCPClient(baseURL string) *MCPClient {
 
 // Get available tools from MCP server
 func (c *MCPClient) GetTools() ([]MCPTool, error) {
+	log.Debug().Msg("calling GetTools")
+
 	resp, err := c.HTTPClient.Get(c.BaseURL + "/tools")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tools: %w", err)

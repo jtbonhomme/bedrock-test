@@ -120,24 +120,12 @@ type Query struct {
 
 // Define PostgreSQL tools that Claude can use
 func getPostgreSQLTools() []Tool {
+	log.Debug().Msg("getPostgreSQLTools")
+
 	return []Tool{
 		{
-			Name:        "postgres_read_query",
-			Description: "Execute a read-only SQL query on PostgreSQL database",
-			InputSchema: InputSchema{
-				Type: "object",
-				Properties: map[string]PropertyDefinition{
-					"query": {
-						Type:        "string",
-						Description: "The SQL query to execute",
-					},
-				},
-				Required: []string{"query"},
-			},
-		},
-		{
-			Name:        "postgres_list_tables",
-			Description: "List all tables in the PostgreSQL database",
+			Name:        "list_database",
+			Description: "List all databases in the PostgreSQL server",
 			InputSchema: InputSchema{
 				Type:       "object",
 				Properties: map[string]PropertyDefinition{},
@@ -145,14 +133,126 @@ func getPostgreSQLTools() []Tool {
 			},
 		},
 		{
-			Name:        "postgres_desc_table",
-			Description: "Describe the structure of a PostgreSQL table",
+			Name:        "list_table",
+			Description: "List all tables in the PostgreSQL server. If name is provided, list tables with the specified name, otherwise list all tables",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]PropertyDefinition{
+					"name": {
+						Type:        "string",
+						Description: "If provided, list tables with the specified name. Otherwise, list all tables",
+					},
+				},
+				Required: []string{},
+			},
+		},
+		{
+			Name:        "create_table",
+			Description: "Create a new table in the PostgreSQL server. Make sure you have added proper comments for each column and the table itself",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]PropertyDefinition{
+					"query": {
+						Type:        "string",
+						Description: "The SQL query to create the table",
+					},
+				},
+				Required: []string{"query"},
+			},
+		},
+		{
+			Name:        "alter_table",
+			Description: "Alter an existing table in the PostgreSQL server. Make sure you have updated comments for each modified column. DO NOT drop table or existing columns!",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]PropertyDefinition{
+					"query": {
+						Type:        "string",
+						Description: "The SQL query to alter the table",
+					},
+				},
+				Required: []string{"query"},
+			},
+		},
+		{
+			Name:        "desc_table",
+			Description: "Describe table structure",
 			InputSchema: InputSchema{
 				Type: "object",
 				Properties: map[string]PropertyDefinition{
 					"name": {
 						Type:        "string",
 						Description: "Name of the table to describe",
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+		{
+			Name:        "read_query",
+			Description: "Execute a read-only SQL query. Make sure you have knowledge of the table structure before writing WHERE conditions. Call `desc_table` first if necessary",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]PropertyDefinition{
+					"query": {
+						Type:        "string",
+						Description: "Execute the SQL query and return the result",
+					},
+				},
+				Required: []string{"query"},
+			},
+		},
+		{
+			Name:        "write_query",
+			Description: "Execute a write SQL query. Make sure you have knowledge of the table structure before executing the query. Make sure the data types match the columns' definitions",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]PropertyDefinition{
+					"query": {
+						Type:        "string",
+						Description: "Execute the SQL query and return the result",
+					},
+				},
+				Required: []string{"query"},
+			},
+		},
+		{
+			Name:        "update_query",
+			Description: "Execute an update SQL query. Make sure you have knowledge of the table structure before executing the query. Make sure there is always a WHERE condition. Call `desc_table` first if necessary",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]PropertyDefinition{
+					"query": {
+						Type:        "string",
+						Description: "Execute the SQL query and return the result",
+					},
+				},
+				Required: []string{"query"},
+			},
+		},
+		{
+			Name:        "delete_query",
+			Description: "Execute a delete SQL query. Make sure you have knowledge of the table structure before executing the query. Make sure there is always a WHERE condition. Call `desc_table` first if necessary",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]PropertyDefinition{
+					"query": {
+						Type:        "string",
+						Description: "Execute the SQL query and return the result",
+					},
+				},
+				Required: []string{"query"},
+			},
+		},
+		{
+			Name:        "count_query",
+			Description: "Query the number of rows in a certain table",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]PropertyDefinition{
+					"name": {
+						Type:        "string",
+						Description: "Name of the table to count",
 					},
 				},
 				Required: []string{"name"},

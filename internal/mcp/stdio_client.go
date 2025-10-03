@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os/exec"
 	"sync"
+
+	"github.com/rs/zerolog/log"
 )
 
 // MCPContent represents content in an MCP response
@@ -86,6 +87,8 @@ func NewStdioMCPClient(executable, dsn string) *StdioMCPClient {
 
 // Connect starts the MCP server process and establishes communication
 func (c *StdioMCPClient) Connect() error {
+	log.Debug().Msg("Connecting to MCP server")
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -116,7 +119,7 @@ func (c *StdioMCPClient) Connect() error {
 		return fmt.Errorf("failed to start MCP server: %w", err)
 	}
 
-	log.Printf("Started MCP server process: %s --dsn %s", c.executable, c.dsn)
+	log.Debug().Msgf("Started MCP server process: %s --dsn %s", c.executable, c.dsn)
 
 	// Initialize the connection
 	return c.initialize()
@@ -124,6 +127,7 @@ func (c *StdioMCPClient) Connect() error {
 
 // initialize sends the initial handshake to the MCP server
 func (c *StdioMCPClient) initialize() error {
+	log.Debug().Msg("initialize and sends the initial handshake to the server")
 	// Send initialize request
 	initReq := MCPRequest{
 		JSONRPC: "2.0",
@@ -150,19 +154,21 @@ func (c *StdioMCPClient) initialize() error {
 		return fmt.Errorf("initialization error: %s", resp.Error.Message)
 	}
 
-	log.Println("MCP server initialized successfully")
+	log.Debug().Msg("MCP server initialized successfully")
 	return nil
 }
 
 // sendRequest sends a request and waits for response
 func (c *StdioMCPClient) sendRequest(req MCPRequest) (*MCPResponse, error) {
+	log.Debug().Msgf("sends request to the server: %v", req)
+
 	// Serialize request
 	reqBytes, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	log.Printf("Sending MCP request: %s", string(reqBytes))
+	log.Debug().Msgf("Sending MCP request: %s", string(reqBytes))
 
 	// Send request
 	if _, err := c.stdin.Write(append(reqBytes, '\n')); err != nil {
@@ -179,7 +185,7 @@ func (c *StdioMCPClient) sendRequest(req MCPRequest) (*MCPResponse, error) {
 	}
 
 	respBytes := scanner.Bytes()
-	log.Printf("Received MCP response: %s", string(respBytes))
+	log.Debug().Msgf("Received MCP response: %s", string(respBytes))
 
 	// Parse response
 	var resp MCPResponse
@@ -198,6 +204,7 @@ func (c *StdioMCPClient) getNextID() int {
 
 // ListTools lists available tools from the MCP server
 func (c *StdioMCPClient) ListTools() ([]MCPTool, error) {
+	log.Debug().Msg("list tools")
 	req := MCPRequest{
 		JSONRPC: "2.0",
 		ID:      c.getNextID(),
@@ -221,11 +228,15 @@ func (c *StdioMCPClient) ListTools() ([]MCPTool, error) {
 		return nil, fmt.Errorf("failed to unmarshal tools result: %w", err)
 	}
 
+	log.Debug().Msgf("\ttools list: %v", result.Tools)
+
 	return result.Tools, nil
 }
 
 // CallTool executes a tool via the MCP server
 func (c *StdioMCPClient) CallTool(name string, arguments map[string]interface{}) (ToolResult, error) {
+	log.Debug().Msgf("CallTool: %s (%v)", name, arguments)
+
 	req := MCPRequest{
 		JSONRPC: "2.0",
 		ID:      c.getNextID(),
