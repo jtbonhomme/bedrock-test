@@ -11,29 +11,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// MCP Tool definitions
-type MCPTool struct {
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	InputSchema map[string]interface{} `json:"inputSchema"`
-}
-
-// MCP Request/Response structures
-type MCPToolRequest struct {
-	Name      string                 `json:"name"`
-	Arguments map[string]interface{} `json:"arguments"`
-}
-
-type MCPToolResponse struct {
-	Content []MCPContent `json:"content"`
-	IsError bool         `json:"isError,omitempty"`
-}
-
-type MCPContent struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-
 // MCP Client
 type MCPClient struct {
 	BaseURL    string

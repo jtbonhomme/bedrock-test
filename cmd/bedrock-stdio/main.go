@@ -39,7 +39,7 @@ func main() {
 
 	flag.BoolVar(&debug, "d", false, "enable debug mode")
 	flag.StringVar(&mcpURL, "mcp", "http://localhost:8080", "MCP server URL (HTTP)")
-	flag.StringVar(&mcpDSN, "mcp-dsn", "", "MCP DSN for go-mcp-postgres (stdio)")
+	flag.StringVar(&mcpDSN, "dsn", "", "MCP DSN for go-mcp-postgres (stdio)")
 	flag.StringVar(&query, "q", "List all tables in the database and describe their structure", "Query to send to Claude")
 	flag.Parse()
 
@@ -98,17 +98,17 @@ func main() {
 	}
 
 	// Test MCP connection
-	if mcpClient != nil {
-		log.Info().Msg("Testing MCP connection...")
-		databases, err := mcpClient.ListDatabases()
-		if err != nil {
-			log.Warn().Msgf("Failed to connect to MCP server: %v", err)
-			log.Info().Msg("Continuing without MCP integration...")
-			mcpClient = nil
-		} else {
-			log.Info().Msgf("MCP server connected successfully. Databases: %v", len(databases.Content))
-		}
-	}
+	//if mcpClient != nil {
+	//	log.Info().Msg("Testing MCP connection...")
+	//	databases, err := mcpClient.ListDatabases()
+	//	if err != nil {
+	//		log.Warn().Msgf("Failed to connect to MCP server: %v", err)
+	//		log.Info().Msg("Continuing without MCP integration...")
+	//		mcpClient = nil
+	//	} else {
+	//		log.Info().Msgf("MCP server connected successfully. Databases: %v", len(databases.Content))
+	//	}
+	//}
 
 	// load aws credentials from profile demo using config
 	awsCfg, err := config.LoadDefaultConfig(context.Background(),
@@ -128,7 +128,7 @@ func main() {
 	var bedrockAnswer string
 	if mcpClient != nil {
 		// Use MCP-integrated function
-		bedrockAnswer, err = bedrock.CallBedrockClaude3WithMCP(bedrockClient, mcpClient, query)
+		bedrockAnswer, err = bedrock.CallBedrockClaude3WithMCP(bedrockClient, &mcp.MCPClient{}, query)
 		if err != nil {
 			log.Err(err).Msg("error calling CallBedrockClaude3WithMCP")
 

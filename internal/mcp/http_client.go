@@ -21,8 +21,8 @@ type MCPToolRequest struct {
 	Arguments map[string]interface{} `json:"arguments"`
 }
 
-// NewMCPClient creates a new HTTP MCP client
-func NewMCPClient(baseURL string) *HTTPMCPClient {
+// NewMCPHTTPClient creates a new HTTP MCP client
+func NewMCPHTTPClient(baseURL string) *HTTPMCPClient {
 	return &HTTPMCPClient{
 		BaseURL: baseURL,
 		HTTPClient: &http.Client{

@@ -28,7 +28,7 @@ type MCPClientConfig struct {
 func NewMCPClientAuto(config MCPClientConfig) (MCPClientInterface, error) {
 	// If BaseURL is provided, use HTTP client
 	if config.BaseURL != "" {
-		return NewMCPClient(config.BaseURL), nil
+		return NewMCPHTTPClient(config.BaseURL), nil
 	}
 
 	// If executable and DSN are provided, use stdio client

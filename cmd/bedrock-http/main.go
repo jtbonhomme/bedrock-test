@@ -79,7 +79,7 @@ func main() {
 	bedrockClient := bedrockruntime.NewFromConfig(awsCfg)
 
 	// Use new MCP-integrated function
-	bedrockAnswer, err := bedrock.CallBedrockClaude3WithMCP(bedrockClient, mcpClient, query)
+	bedrockAnswer, err := bedrock.CallBedrockClaude3WithMCP(bedrockClient, &mcp.MCPClient{}, query)
 	if err != nil {
 		log.Err(err).Msg("error calling CallBedrockClaude3WithMCP")
 
