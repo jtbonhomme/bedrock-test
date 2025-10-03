@@ -311,12 +311,14 @@ func CallBedrockClaude3WithMCP(bedrockClient *bedrockruntime.Client, mcpClient m
 			log.Err(err).Msgf("error marshaling payload %#v ", payload)
 			return "", err
 		}
-		log.Debug().Msgf("payload %s", string(payloadBytes))
+		//log.Debug().Msgf("payload %s", string(payloadBytes))
 
 		// Use non-streaming for easier tool handling
 		input := &bedrockruntime.InvokeModelInput{
-			Body:        payloadBytes,
-			ModelId:     aws.String("anthropic.claude-3-sonnet-20240229-v1:0"),
+			Body: payloadBytes,
+			//ModelId: aws.String("anthropic.claude-sonnet-4-5-20250929-v1:0"),
+			//ModelId: aws.String("anthropic.claude-3-haiku-20240307-v1:0"), // totally terrible
+			ModelId:     aws.String("anthropic.claude-3-sonnet-20240229-v1:0"), // mostly terrible
 			ContentType: aws.String("application/json"),
 			Accept:      aws.String("application/json"),
 		}
@@ -403,6 +405,7 @@ func executeMCPTool(mcpClient mcp.MCPClientInterface, toolName string, arguments
 	case "list_database":
 		result, err := mcpClient.ListDatabases()
 		if err != nil {
+			log.Err(err).Msgf("error while executing %s with args: %v", toolName, arguments)
 			return "", err
 		}
 		return formatMCPResult(result), nil
@@ -410,6 +413,7 @@ func executeMCPTool(mcpClient mcp.MCPClientInterface, toolName string, arguments
 	case "list_table":
 		result, err := mcpClient.ListTables()
 		if err != nil {
+			log.Err(err).Msgf("error while executing %s with args: %v", toolName, arguments)
 			return "", err
 		}
 		return formatMCPResult(result), nil
@@ -417,10 +421,12 @@ func executeMCPTool(mcpClient mcp.MCPClientInterface, toolName string, arguments
 	case "desc_table":
 		tableName, ok := arguments["name"].(string)
 		if !ok {
+			log.Error().Msgf("error while executing %s with args: %v", toolName, arguments)
 			return "", fmt.Errorf("desc_table requires valid 'name' parameter")
 		}
 		result, err := mcpClient.DescribeTable(tableName)
 		if err != nil {
+			log.Err(err).Msgf("error while executing %s with args: %v", toolName, arguments)
 			return "", err
 		}
 		return formatMCPResult(result), nil
@@ -428,10 +434,12 @@ func executeMCPTool(mcpClient mcp.MCPClientInterface, toolName string, arguments
 	case "read_query":
 		query, ok := arguments["query"].(string)
 		if !ok {
+			log.Error().Msgf("error while executing %s with args: %v", toolName, arguments)
 			return "", fmt.Errorf("read_query requires 'query' parameter")
 		}
 		result, err := mcpClient.ExecuteReadQuery(query)
 		if err != nil {
+			log.Err(err).Msgf("error while executing %s with args: %v", toolName, arguments)
 			return "", err
 		}
 		return formatMCPResult(result), nil
@@ -439,12 +447,14 @@ func executeMCPTool(mcpClient mcp.MCPClientInterface, toolName string, arguments
 	case "count_query":
 		tableName, ok := arguments["name"].(string)
 		if !ok {
+			log.Error().Msgf("error while executing %s with args: %v", toolName, arguments)
 			return "", fmt.Errorf("count_query requires 'name' parameter")
 		}
 		// Use ExecuteReadQuery for count
 		query := fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)
 		result, err := mcpClient.ExecuteReadQuery(query)
 		if err != nil {
+			log.Err(err).Msgf("error while executing %s with args: %v", toolName, arguments)
 			return "", err
 		}
 		return formatMCPResult(result), nil

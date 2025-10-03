@@ -15,6 +15,8 @@ The table containing the billing information is named 'billing_report_unified_pr
 
 All data are already available in the database, you can not create any table, or alter, update or delete any data in the database. You are only allowed to list or describe tables, or execute read only (SELECT) queries.
 
+There are lot's of rows in the table, so make sure you group costs per start_date to limit the number of results.
+
 You shall provide in the output all queries you made.
 
 At the end, generate a JSON formated as an output based on this template:
@@ -26,3 +28,5 @@ At the end, generate a JSON formated as an output based on this template:
         \"2025-12-01\": 1.00,
     }
 }
+
+Present your reasoning step by step, provide the data you considered (monthly spent since January 2024), and the parameters you took into account (seasonality, monthly average spent, trend slope, ...)

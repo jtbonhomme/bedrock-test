@@ -7,6 +7,8 @@ import (
 	"io"
 	"os/exec"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/rs/zerolog/log"
 )
@@ -170,18 +172,43 @@ func (c *StdioMCPClient) sendRequest(req MCPRequest) (*MCPResponse, error) {
 
 	log.Debug().Msgf("Sending MCP request: %s", string(reqBytes))
 
-	// Send request
-	if _, err := c.stdin.Write(append(reqBytes, '\n')); err != nil {
-		return nil, fmt.Errorf("failed to write request: %w", err)
+	// Check if process is still running before writing
+	if c.cmd == nil || c.cmd.Process == nil {
+		return nil, fmt.Errorf("MCP server process is not running")
+	}
+	// Write the request in chunks to avoid broken pipe errors for large payloads
+	totalWritten := 0
+	nErrors := 0
+	for totalWritten < len(reqBytes) {
+		n, err := c.stdin.Write(reqBytes[totalWritten : totalWritten+1])
+		if err != nil {
+			if waitErr := c.cmd.Process.Signal(syscall.Signal(0)); waitErr != nil {
+				return nil, fmt.Errorf("MCP server process has exited: %w", err)
+			}
+			if nErrors >= 100 {
+				return nil, fmt.Errorf("failed to write request (total written %d): %w", totalWritten, err)
+			}
+			log.Debug().Msgf("failed to write request (total written %d | n attempts %d)", totalWritten, nErrors)
+			nErrors++
+		}
+		totalWritten += n
+		time.Sleep(time.Millisecond * 10)
+	}
+	// Write the newline to close the request
+	if _, err := c.stdin.Write([]byte{'\n'}); err != nil {
+		if waitErr := c.cmd.Process.Signal(syscall.Signal(0)); waitErr != nil {
+			return nil, fmt.Errorf("MCP server process has exited: %w", err)
+		}
+		return nil, fmt.Errorf("failed to write request newline: %w", err)
 	}
 
 	// Read response
 	reader := bufio.NewReader(c.stdout)
 	respBytes, err := reader.ReadBytes('\n')
-	if err != nil {
+	if err != nil /*&& err != io.EOF*/ {
+		log.Debug().Msgf("Received MCP response: %s (err: %v)", string(respBytes), err)
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
-	log.Debug().Msgf("Received MCP response: %s", string(respBytes))
 
 	// Parse response
 	var resp MCPResponse

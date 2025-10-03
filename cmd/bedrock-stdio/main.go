@@ -118,7 +118,7 @@ func main() {
 		log.Panic().Msgf("failed to load aws config: %v", err)
 	}
 
-	log.Debug().Msgf("aws config: %+v\n", awsCfg)
+	//log.Debug().Msgf("aws config: %+v\n", awsCfg)
 	checkAWSConfig(awsCfg)
 
 	// create bedrock runtime client
