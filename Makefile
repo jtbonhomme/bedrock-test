@@ -6,6 +6,13 @@ build:
 	go build -o bedrock-client .
 	go build -o mcp-server ./cmd/mcp-server
 
+load-env:
+	$(eval include .env)
+	$(eval export sed 's/=.*//' .env)
+
+run: load-env
+	go run ./cmd/bedrock-stdio -dsn postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@$(POSTGRES_HOST):$(POSTGRES_PORT)/$(POSTGRES_DB) -q "$(shell cat prompt.md)"
+
 # Run MCP server (in background for testing)
 run-server: build
 	./mcp-server &

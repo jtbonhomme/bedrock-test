@@ -131,23 +131,11 @@ func main() {
 		bedrockAnswer, err = bedrock.CallBedrockClaude3WithMCP(bedrockClient, mcpClient, query)
 		if err != nil {
 			log.Err(err).Msg("error calling CallBedrockClaude3WithMCP")
-
-			// Fallback to original function
-			log.Info().Msg("Falling back to original Bedrock function...")
-			bedrockAnswer, err = bedrock.CallBedrockClaude3HaikuChat(bedrockClient)
-			if err != nil {
-				log.Err(err).Msg("error calling CallBedrockClaude3HaikuChat")
-				return
-			}
-		}
-	} else {
-		// Use original function without MCP
-		log.Info().Msg("Using Bedrock without MCP integration...")
-		bedrockAnswer, err = bedrock.CallBedrockClaude3HaikuChat(bedrockClient)
-		if err != nil {
-			log.Err(err).Msg("error calling CallBedrockClaude3HaikuChat")
 			return
 		}
+	} else {
+		log.Err(err).Msg("mcpClient can not be nil")
+		return
 	}
 
 	log.Info().Msgf("answer is \"%s\"", bedrockAnswer)
