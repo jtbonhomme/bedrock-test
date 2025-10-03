@@ -128,7 +128,7 @@ func main() {
 	var bedrockAnswer string
 	if mcpClient != nil {
 		// Use MCP-integrated function
-		bedrockAnswer, err = bedrock.CallBedrockClaude3WithMCP(bedrockClient, &mcp.MCPClient{}, query)
+		bedrockAnswer, err = bedrock.CallBedrockClaude3WithMCP(bedrockClient, mcpClient, query)
 		if err != nil {
 			log.Err(err).Msg("error calling CallBedrockClaude3WithMCP")
 

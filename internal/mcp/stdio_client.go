@@ -297,7 +297,7 @@ func (c *StdioMCPClient) Close() error {
 
 // ListDatabases lists available databases
 func (c *StdioMCPClient) ListDatabases() (MCPToolResponse, error) {
-	result, err := c.CallTool("mcp_postgres_list_database", map[string]interface{}{})
+	result, err := c.CallTool("list_database", map[string]interface{}{})
 	if err != nil {
 		return MCPToolResponse{}, err
 	}
@@ -310,7 +310,7 @@ func (c *StdioMCPClient) ListDatabases() (MCPToolResponse, error) {
 
 // ListTables lists available tables
 func (c *StdioMCPClient) ListTables() (MCPToolResponse, error) {
-	result, err := c.CallTool("mcp_postgres_list_table", map[string]interface{}{})
+	result, err := c.CallTool("list_table", map[string]interface{}{})
 	if err != nil {
 		return MCPToolResponse{}, err
 	}
@@ -323,7 +323,7 @@ func (c *StdioMCPClient) ListTables() (MCPToolResponse, error) {
 
 // ExecuteReadQuery executes a read-only SQL query
 func (c *StdioMCPClient) ExecuteReadQuery(query string) (MCPToolResponse, error) {
-	result, err := c.CallTool("mcp_postgres_read_query", map[string]interface{}{
+	result, err := c.CallTool("read_query", map[string]interface{}{
 		"query": query,
 	})
 	if err != nil {
@@ -338,7 +338,7 @@ func (c *StdioMCPClient) ExecuteReadQuery(query string) (MCPToolResponse, error)
 
 // DescribeTable describes the structure of a table
 func (c *StdioMCPClient) DescribeTable(tableName string) (MCPToolResponse, error) {
-	result, err := c.CallTool("mcp_postgres_desc_table", map[string]interface{}{
+	result, err := c.CallTool("desc_table", map[string]interface{}{
 		"name": tableName,
 	})
 	if err != nil {

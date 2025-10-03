@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -17,8 +18,13 @@ import (
 
 // claude3 request data type
 type Content struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Type      string                 `json:"type"`
+	Text      string                 `json:"text,omitempty"`
+	Name      string                 `json:"name,omitempty"`        // for tool_use
+	ID        string                 `json:"id,omitempty"`          // for tool_use
+	Input     map[string]interface{} `json:"input,omitempty"`       // for tool_use
+	ToolUseID string                 `json:"tool_use_id,omitempty"` // for tool_result
+	Content   string                 `json:"content,omitempty"`     // for tool_result
 }
 
 type Message struct {
@@ -73,6 +79,21 @@ type ResponseClaude3 struct {
 	Type  string `json:"type"`
 	Index int    `json:"index"`
 	Delta Delta  `json:"delta"`
+}
+
+// ClaudeResponse represents the response from Claude (non-streaming)
+type ClaudeResponse struct {
+	ID           string    `json:"id"`
+	Type         string    `json:"type"`
+	Role         string    `json:"role"`
+	Content      []Content `json:"content"`
+	Model        string    `json:"model"`
+	StopReason   string    `json:"stop_reason"`
+	StopSequence string    `json:"stop_sequence,omitempty"`
+	Usage        struct {
+		InputTokens  int `json:"input_tokens"`
+		OutputTokens int `json:"output_tokens"`
+	} `json:"usage"`
 }
 
 // Tool use response types
@@ -261,7 +282,7 @@ func getPostgreSQLTools() []Tool {
 	}
 }
 
-func CallBedrockClaude3WithMCP(bedrockClient *bedrockruntime.Client, mcpClient *mcp.MCPClient, userQuery string) (string, error) {
+func CallBedrockClaude3WithMCP(bedrockClient *bedrockruntime.Client, mcpClient mcp.MCPClientInterface, userQuery string) (string, error) {
 	log.Debug().Msg("CallBedrockClaude3WithMCP")
 
 	messages := []Message{
@@ -276,70 +297,177 @@ func CallBedrockClaude3WithMCP(bedrockClient *bedrockruntime.Client, mcpClient *
 		},
 	}
 
-	payload := RequestBodyClaude3{
-		MaxTokensToSample: 2048,
-		AnthropicVersion:  "bedrock-2023-05-31",
-		Temperature:       0.1,
-		Messages:          messages,
-		Tools:             getPostgreSQLTools(),
-		ToolChoice:        &ToolChoice{Type: "auto"},
-	}
-
-	payloadBytes, error := json.Marshal(payload)
-	if error != nil {
-		log.Err(error).Msgf("error marshaling payload %#v ", payload)
-		return "", error
-	}
-	log.Debug().Msgf("payload %s", string(payloadBytes))
-
-	input := &bedrockruntime.InvokeModelWithResponseStreamInput{
-		Body:        payloadBytes,
-		ModelId:     aws.String("anthropic.claude-3-sonnet-20240229-v1:0"),
-		ContentType: aws.String("application/json"),
-		Accept:      aws.String("*/*"),
-	}
-
-	output, error := bedrockClient.InvokeModelWithResponseStream(
-		context.Background(),
-		input,
-	)
-	if error != nil {
-		log.Err(error).Msg("error invoking InvokeModelWithResponseStream with modelId " + *input.ModelId)
-		return "", error
-	}
-
+	maxIterations := 10 // Prevent infinite loops
 	fullAnswer := ""
-	s := spinner.New(spinner.CharSets[9], 100*time.Millisecond)
-	s.Start()
 
-	for event := range output.GetStream().Events() {
-		switch v := event.(type) {
-		case *types.ResponseStreamMemberChunk:
-			var resp ResponseClaude3
-			err := json.NewDecoder(bytes.NewReader(v.Value.Bytes)).Decode(&resp)
-			if err != nil {
-				log.Err(err).Msg("error decoding response")
-				return "", err
+	for iteration := 0; iteration < maxIterations; iteration++ {
+		payload := RequestBodyClaude3{
+			MaxTokensToSample: 2048,
+			AnthropicVersion:  "bedrock-2023-05-31",
+			Temperature:       0.1,
+			Messages:          messages,
+			Tools:             getPostgreSQLTools(),
+			ToolChoice:        &ToolChoice{Type: "auto"},
+		}
+
+		payloadBytes, err := json.Marshal(payload)
+		if err != nil {
+			log.Err(err).Msgf("error marshaling payload %#v ", payload)
+			return "", err
+		}
+		log.Debug().Msgf("payload %s", string(payloadBytes))
+
+		// Use non-streaming for easier tool handling
+		input := &bedrockruntime.InvokeModelInput{
+			Body:        payloadBytes,
+			ModelId:     aws.String("anthropic.claude-3-sonnet-20240229-v1:0"),
+			ContentType: aws.String("application/json"),
+			Accept:      aws.String("application/json"),
+		}
+
+		output, err := bedrockClient.InvokeModel(context.Background(), input)
+		if err != nil {
+			log.Err(err).Msg("error invoking InvokeModel with modelId " + *input.ModelId)
+			return "", err
+		}
+
+		// Parse Claude's response
+		var claudeResponse ClaudeResponse
+		err = json.Unmarshal(output.Body, &claudeResponse)
+		if err != nil {
+			log.Err(err).Msg("error unmarshaling Claude response")
+			return "", err
+		}
+
+		// Process Claude's response content
+		toolUsed := false
+		var assistantContent []Content
+
+		for _, content := range claudeResponse.Content {
+			if content.Type == "text" {
+				fullAnswer += content.Text
+				assistantContent = append(assistantContent, content)
+			} else if content.Type == "tool_use" {
+				toolUsed = true
+				log.Debug().Msgf("Claude wants to use tool: %s", content.Name)
+
+				// Execute the tool via MCP
+				toolResult, err := executeMCPTool(mcpClient, content.Name, content.Input)
+				if err != nil {
+					log.Err(err).Msgf("error executing tool %s", content.Name)
+					toolResult = fmt.Sprintf("Error executing tool: %v", err)
+				}
+
+				// Add tool use to assistant content
+				assistantContent = append(assistantContent, content)
+
+				// Add tool result to messages
+				messages = append(messages, Message{
+					Role:    "assistant",
+					Content: assistantContent,
+				})
+
+				messages = append(messages, Message{
+					Role: "user",
+					Content: []Content{
+						{
+							Type:      "tool_result",
+							ToolUseID: content.ID,
+							Content:   toolResult,
+						},
+					},
+				})
 			}
+		}
 
-			// Check if Claude wants to use a tool
-			if resp.Delta.Type == "tool_use" {
-				// Handle tool use (will be implemented in next step)
-				log.Debug().Msg("Claude wants to use a tool")
-			} else {
-				fullAnswer += resp.Delta.Text
+		// If no tools were used, we're done
+		if !toolUsed {
+			// Add final assistant message
+			if len(assistantContent) > 0 {
+				messages = append(messages, Message{
+					Role:    "assistant",
+					Content: assistantContent,
+				})
 			}
-
-		case *types.UnknownUnionMember:
-			log.Debug().Msgf("unknown tag: %v", v.Tag)
-
-		default:
-			log.Debug().Msg("union is nil or unknown type")
+			break
 		}
 	}
-	s.Stop()
 
 	return fullAnswer, nil
+}
+
+// executeMCPTool executes a tool via the MCP client
+func executeMCPTool(mcpClient mcp.MCPClientInterface, toolName string, arguments map[string]interface{}) (string, error) {
+	log.Debug().Msgf("Executing MCP tool: %s with args: %v", toolName, arguments)
+
+	switch toolName {
+	case "list_database":
+		result, err := mcpClient.ListDatabases()
+		if err != nil {
+			return "", err
+		}
+		return formatMCPResult(result), nil
+
+	case "list_table":
+		result, err := mcpClient.ListTables()
+		if err != nil {
+			return "", err
+		}
+		return formatMCPResult(result), nil
+
+	case "desc_table":
+		tableName, ok := arguments["name"].(string)
+		if !ok {
+			return "", fmt.Errorf("desc_table requires 'name' parameter")
+		}
+		result, err := mcpClient.DescribeTable(tableName)
+		if err != nil {
+			return "", err
+		}
+		return formatMCPResult(result), nil
+
+	case "read_query":
+		query, ok := arguments["query"].(string)
+		if !ok {
+			return "", fmt.Errorf("read_query requires 'query' parameter")
+		}
+		result, err := mcpClient.ExecuteReadQuery(query)
+		if err != nil {
+			return "", err
+		}
+		return formatMCPResult(result), nil
+
+	case "count_query":
+		tableName, ok := arguments["name"].(string)
+		if !ok {
+			return "", fmt.Errorf("count_query requires 'name' parameter")
+		}
+		// Use ExecuteReadQuery for count
+		query := fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)
+		result, err := mcpClient.ExecuteReadQuery(query)
+		if err != nil {
+			return "", err
+		}
+		return formatMCPResult(result), nil
+
+	default:
+		return "", fmt.Errorf("unsupported tool: %s", toolName)
+	}
+}
+
+// formatMCPResult formats MCP tool response for Claude
+func formatMCPResult(response mcp.MCPToolResponse) string {
+	if response.IsError {
+		return fmt.Sprintf("Error: %v", response.Content)
+	}
+
+	var result string
+	for _, content := range response.Content {
+		if content.Type == "text" {
+			result += content.Text + "\n"
+		}
+	}
+	return result
 }
 
 func CallBedrockClaude3HaikuChat(bedrockClient *bedrockruntime.Client) (string, error) {
