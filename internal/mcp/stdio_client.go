@@ -176,15 +176,11 @@ func (c *StdioMCPClient) sendRequest(req MCPRequest) (*MCPResponse, error) {
 	}
 
 	// Read response
-	scanner := bufio.NewScanner(c.stdout)
-	if !scanner.Scan() {
-		if err := scanner.Err(); err != nil {
-			return nil, fmt.Errorf("failed to read response: %w", err)
-		}
-		return nil, fmt.Errorf("no response received")
+	reader := bufio.NewReader(c.stdout)
+	respBytes, err := reader.ReadBytes('\n')
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
-
-	respBytes := scanner.Bytes()
 	log.Debug().Msgf("Received MCP response: %s", string(respBytes))
 
 	// Parse response

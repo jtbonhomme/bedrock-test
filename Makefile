@@ -48,3 +48,9 @@ dev-client:
 test-mcp:
 	curl -s http://localhost:8080/health || echo "MCP server not running"
 	curl -s http://localhost:8080/tools | jq '.' || echo "Failed to get tools"
+
+xx:
+	TOTO="$(shell cat prompt.md)"
+	echo $(TOTO)
+	echo "$(TOTO)"
+	echo '$(TOTO)'
